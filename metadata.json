@@ -1,0 +1,8 @@
+{
+  "name": "Remix: X-Ray Simulator",
+  "description": "A client-side interactive tool for simulating localized optical X-Ray effects over stacked user content via an interactive canvas lens.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
