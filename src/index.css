@@ -1,0 +1,137 @@
+@import "tailwindcss";
+
+/* Force cursor pointer on all interactive controls */
+button,
+[role="button"],
+input[type="range"],
+input[type="checkbox"],
+input[type="radio"],
+select,
+.cursor-pointer {
+  cursor: pointer !important;
+}
+
+/* ==========================================================================
+   ULTRA-MINIMALIST SLIDER CONTROLS (input[type="range"])
+   ========================================================================== */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  width: 100%;
+  height: 16px;
+  cursor: pointer;
+  margin: 0;
+  vertical-align: middle;
+}
+
+input[type="range"]:focus {
+  outline: none;
+}
+
+/* Chrome, Safari, Edge, Opera Track */
+input[type="range"]::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 9999px;
+  border: none;
+  transition: background 0.2s ease, height 0.2s ease;
+}
+
+input[type="range"]:hover::-webkit-slider-runnable-track {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+/* Chrome, Safari, Edge, Opera Thumb */
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 10px;
+  width: 10px;
+  border-radius: 50%;
+  background: #22d3ee;
+  border: 1.5px solid #06080c;
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.6);
+  margin-top: -4px;
+  cursor: pointer;
+  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+input[type="range"]:hover::-webkit-slider-thumb {
+  transform: scale(1.3);
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.9);
+  background: #67e8f9;
+}
+
+input[type="range"]:active::-webkit-slider-thumb {
+  transform: scale(1.45);
+  background: #ffffff;
+  box-shadow: 0 0 16px rgba(34, 211, 238, 1);
+}
+
+/* Firefox Track */
+input[type="range"]::-moz-range-track {
+  width: 100%;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 9999px;
+  border: none;
+  transition: background 0.2s ease;
+}
+
+input[type="range"]:hover::-moz-range-track {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+/* Firefox Thumb */
+input[type="range"]::-moz-range-thumb {
+  height: 10px;
+  width: 10px;
+  border-radius: 50%;
+  background: #22d3ee;
+  border: 1.5px solid #06080c;
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.6);
+  cursor: pointer;
+  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.15s ease;
+}
+
+input[type="range"]:hover::-moz-range-thumb {
+  transform: scale(1.3);
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.9);
+}
+
+input[type="range"]:active::-moz-range-thumb {
+  transform: scale(1.45);
+  background: #ffffff;
+  box-shadow: 0 0 16px rgba(34, 211, 238, 1);
+}
+
+/* ==========================================================================
+   MINIMALIST DARK-MODE SCROLLBARS (Thanh cuộn tối giản)
+   ========================================================================== */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(34, 211, 238, 0.45);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+
