@@ -433,6 +433,13 @@ export default function ProjectList({ onOpenProject }: ProjectListProps) {
     setCollapsedFolders({});
   };
 
+  // Flat sequence reflecting exact visible display order on screen (grouped vs flat)
+  const activeSequence = useMemo(() => {
+    return groupByFolder
+      ? groupedFolderList.flatMap((g) => g.items)
+      : filteredAndSortedProjects;
+  }, [groupByFolder, groupedFolderList, filteredAndSortedProjects]);
+
   const handleNewProject = async () => {
     const target = selectedFolderFilter !== 'ALL' ? selectedFolderFilter : 'Khác';
     const newP: ProjectData = {
@@ -442,7 +449,7 @@ export default function ProjectList({ onOpenProject }: ProjectListProps) {
       createdAt: Date.now(),
       layers: [],
     };
-    onOpenProject(newP, filteredAndSortedProjects);
+    onOpenProject(newP, activeSequence);
   };
 
   // Open project: loads full high-resolution project on demand!
@@ -453,7 +460,7 @@ export default function ProjectList({ onOpenProject }: ProjectListProps) {
     try {
       const full = await getProject(summary.id);
       if (full) {
-        onOpenProject(full, filteredAndSortedProjects);
+        onOpenProject(full, activeSequence);
       } else {
         onOpenProject({
           id: summary.id,
@@ -461,7 +468,7 @@ export default function ProjectList({ onOpenProject }: ProjectListProps) {
           folder: summary.folder || 'Khác',
           createdAt: summary.createdAt,
           layers: [],
-        }, filteredAndSortedProjects);
+        }, activeSequence);
       }
     } catch (e) {
       console.error('Error loading full project on demand:', e);
