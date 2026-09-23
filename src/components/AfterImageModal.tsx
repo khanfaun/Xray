@@ -163,84 +163,8 @@ export default function AfterImageModal({
     setBatchNotice(null);
     cancelProcessingRef.current = false;
 
-    // 1. Fetch existing projects from database to check for previously initialized files
-    let existingProjects: ProjectData[] = [];
-    try {
-      existingProjects = await getProjects();
-    } catch (e) {
-      console.warn('Could not read existing projects for deduplication:', e);
-    }
-
-    // Build lookup keys for existing projects and current modal items
-    const existingKeys = new Set<string>();
-
-    // From IndexedDB projects:
-    existingProjects.forEach((proj) => {
-      proj.layers.forEach((l) => {
-        if (l.name) {
-          const lSize = l.blob?.size || 0;
-          existingKeys.add(`${l.name.toLowerCase()}__${lSize}`);
-          existingKeys.add(l.name.toLowerCase());
-        }
-      });
-      const baseProjName = proj.name.replace(/\s*\(AFTER\s*\+\s*GỐC\)$/i, '').trim().toLowerCase();
-      if (baseProjName) {
-        existingKeys.add(baseProjName);
-      }
-    });
-
-    // From currently listed items in the modal:
-    items.forEach((it) => {
-      existingKeys.add(`${it.afterFile.name.toLowerCase()}__${it.afterFile.size}`);
-      existingKeys.add(it.afterFile.name.toLowerCase());
-      if (it.originalName) {
-        existingKeys.add(it.originalName.toLowerCase());
-      }
-    });
-
-    // 2. Filter incoming files: automatically skip duplicates (same name, path, size, or already initialized)
-    const uniqueFiles: File[] = [];
-    const seenInBatch = new Set<string>();
-    let skippedCount = 0;
-
-    for (const f of files) {
-      const nameLower = f.name.toLowerCase();
-      const baseName = nameLower.replace(/\.[^/.]+$/, '');
-      const relPath = (f as any).webkitRelativePath?.toLowerCase() || '';
-
-      const keyExact = `${nameLower}__${f.size}`;
-      const keyRelExact = relPath ? `${relPath}__${f.size}` : '';
-
-      const isDuplicate =
-        seenInBatch.has(keyExact) ||
-        (keyRelExact ? seenInBatch.has(keyRelExact) : false) ||
-        existingKeys.has(keyExact) ||
-        (keyRelExact ? existingKeys.has(keyRelExact) : false);
-
-      if (isDuplicate) {
-        skippedCount++;
-        continue;
-      }
-
-      seenInBatch.add(keyExact);
-      if (keyRelExact) seenInBatch.add(keyRelExact);
-      uniqueFiles.push(f);
-    }
-
-    if (uniqueFiles.length === 0) {
-      setIsProcessing(false);
-      if (skippedCount > 0) {
-        setBatchNotice(`Đã tự động loại bỏ tất cả ${skippedCount} ảnh đã từng khởi tạo trước đó (trùng tên, dung lượng hoặc đã lưu) để tránh bị lặp.`);
-      }
-      return;
-    }
-
-    if (skippedCount > 0) {
-      setBatchNotice(`Đã tự động loại bỏ ${skippedCount} ảnh đã từng khởi tạo trước đó để tránh trùng lặp. Đang xử lý ${uniqueFiles.length} ảnh mới...`);
-    }
-
     // Do NOT eagerly create URLs for 100 files; LazyPreviewImg handles visible rows on-demand
-    const newItems: BatchPairItem[] = uniqueFiles.map((f) => ({
+    const newItems: BatchPairItem[] = files.map((f) => ({
       id: `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       afterFile: f,
       detectedInfo: null,
@@ -271,7 +195,7 @@ export default function AfterImageModal({
         item.detectedInfo = info;
 
         // 2. Try to automatically find BEFORE image (from source folder, batch files, DB, or URL)
-        const matchResult: AutoMatchResult = await findOriginalImage(item.afterFile, info, uniqueFiles);
+        const matchResult: AutoMatchResult = await findOriginalImage(item.afterFile, info, files);
 
         if (matchResult.originalBlob && matchResult.originalName) {
           item.originalBlob = matchResult.originalBlob;
@@ -405,30 +329,11 @@ export default function AfterImageModal({
     try {
       setIsProcessing(true);
 
-      // Pre-fetch existing projects to avoid duplicate creation
-      let existingProjects: ProjectData[] = [];
-      try {
-        existingProjects = await getProjects();
-      } catch (e) {
-        console.warn('Could not load existing projects:', e);
-      }
-
-      const existingProjectNames = new Set(existingProjects.map((p) => p.name.toLowerCase().trim()));
-      let createdCount = 0;
-      let skippedCount = 0;
-
       for (let i = 0; i < matchedItems.length; i++) {
         const item = matchedItems[i];
         setBatchNotice(`Đang tạo & tối ưu ảnh nhỏ (${i + 1}/${matchedItems.length})...`);
 
         const projName = (item.originalName || item.afterFile.name).replace(/\.[^/.]+$/, '');
-        const fullName = `${projName} (AFTER + GỐC)`.toLowerCase().trim();
-
-        if (existingProjectNames.has(fullName) || existingProjectNames.has(projName.toLowerCase().trim())) {
-          skippedCount++;
-          continue;
-        }
-
         const p = await createXRayPairProject(
           item.afterFile,
           item.originalBlob!,
@@ -437,17 +342,9 @@ export default function AfterImageModal({
           targetFolder
         );
         await saveProject(p);
-        existingProjectNames.add(p.name.toLowerCase().trim());
-        createdCount++;
       }
 
-      if (skippedCount > 0) {
-        setBatchNotice(
-          `Đã tạo ${createdCount} dự án mới, tự động bỏ qua ${skippedCount} dự án đã tồn tại trong hệ thống.`
-        );
-      } else {
-        setBatchNotice(`Đã lưu thành công tất cả ${createdCount} dự án vào thư mục "${targetFolder}"!`);
-      }
+      setBatchNotice(`Đã lưu thành công tất cả ${matchedItems.length} dự án vào thư mục "${targetFolder}"!`);
 
       // Keep user on the project list: do NOT automatically open detail view
       setTimeout(() => {

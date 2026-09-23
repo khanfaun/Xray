@@ -27,7 +27,15 @@ function Thumbnail({ layer }: { layer: LayerData }) {
   );
 }
 
-export default function XRayViewer({ initialProject, onBack }: { initialProject: ProjectData, onBack: () => void }) {
+export default function XRayViewer({ 
+  initialProject, 
+  projectListSequence,
+  onBack 
+}: { 
+  initialProject: ProjectData;
+  projectListSequence?: ProjectSummary[];
+  onBack: () => void;
+}) {
   const [project, setProject] = useState(initialProject);
   const projectRef = useRef(project);
   useEffect(() => { projectRef.current = project; }, [project]);
@@ -42,14 +50,20 @@ export default function XRayViewer({ initialProject, onBack }: { initialProject:
   const [zoomLevel, setZoomLevel] = useState(100);
   const apiRef = useRef<any>(null);
   
-  const [allProjects, setAllProjects] = useState<ProjectSummary[]>([]);
+  const [allProjects, setAllProjects] = useState<ProjectSummary[]>(
+    projectListSequence && projectListSequence.length > 0 ? projectListSequence : []
+  );
   const [isAfterModalOpen, setIsAfterModalOpen] = useState(false);
   const [isMetadataOpen, setIsMetadataOpen] = useState(true);
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true);
 
   useEffect(() => {
-    getProjectsSummary().then(setAllProjects).catch(console.error);
-  }, [project]);  
+    if (projectListSequence && projectListSequence.length > 0) {
+      setAllProjects(projectListSequence);
+    } else {
+      getProjectsSummary().then(setAllProjects).catch(console.error);
+    }
+  }, [projectListSequence]);  
 
   const handleApplyAfterPair = async (origBlob: Blob | File, origName: string, afterF: File) => {
     pushHistory(projectRef.current);

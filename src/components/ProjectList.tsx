@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import AfterImageModal from './AfterImageModal';
 
 interface ProjectListProps {
-  onOpenProject: (project: ProjectData) => void;
+  onOpenProject: (project: ProjectData, currentList?: ProjectSummary[]) => void;
 }
 
 export type SortOption =
@@ -382,7 +382,7 @@ export default function ProjectList({ onOpenProject }: ProjectListProps) {
       createdAt: Date.now(),
       layers: [],
     };
-    onOpenProject(newP);
+    onOpenProject(newP, filteredAndSortedProjects);
   };
 
   // Open project: loads full high-resolution project on demand!
@@ -393,7 +393,7 @@ export default function ProjectList({ onOpenProject }: ProjectListProps) {
     try {
       const full = await getProject(summary.id);
       if (full) {
-        onOpenProject(full);
+        onOpenProject(full, filteredAndSortedProjects);
       } else {
         onOpenProject({
           id: summary.id,
@@ -401,7 +401,7 @@ export default function ProjectList({ onOpenProject }: ProjectListProps) {
           folder: summary.folder || 'Khác',
           createdAt: summary.createdAt,
           layers: [],
-        });
+        }, filteredAndSortedProjects);
       }
     } catch (e) {
       console.error('Error loading full project on demand:', e);
