@@ -186,6 +186,16 @@ export default function ProjectList({ onOpenProject }: ProjectListProps) {
   const [isMoveNewFolder, setIsMoveNewFolder] = useState<boolean>(false);
   const [newMoveFolderName, setNewMoveFolderName] = useState<string>('');
 
+  // Batch move projects modal state
+  const [isBatchMoveModalOpen, setIsBatchMoveModalOpen] = useState(false);
+  const [batchMoveTargetFolder, setBatchMoveTargetFolder] = useState<string>('Khác');
+  const [isBatchMoveNewFolder, setIsBatchMoveNewFolder] = useState<boolean>(false);
+  const [newBatchMoveFolderName, setNewBatchMoveFolderName] = useState<string>('');
+  const [isBatchMoving, setIsBatchMoving] = useState(false);
+
+  // Shift-click range selection tracking
+  const lastSelectedIdRef = useRef<string | null>(null);
+
   // Rename folder modal state
   const [renamingFolder, setRenamingFolder] = useState<{ oldName: string; currentCount: number } | null>(null);
   const [newFolderNameInput, setNewFolderNameInput] = useState<string>('');
@@ -445,6 +455,71 @@ export default function ProjectList({ onOpenProject }: ProjectListProps) {
     }
   };
 
+  // Open Batch Move Modal for all currently selected projects
+  const openBatchMoveModal = () => {
+    if (selectedProjects.length === 0) return;
+    setBatchMoveTargetFolder('Khác');
+    setIsBatchMoveNewFolder(false);
+    setNewBatchMoveFolderName('');
+    setIsBatchMoveModalOpen(true);
+  };
+
+  const confirmBatchMove = async () => {
+    if (selectedProjects.length === 0) return;
+    const dest = (isBatchMoveNewFolder ? newBatchMoveFolderName.trim() : batchMoveTargetFolder.trim()) || 'Khác';
+    try {
+      setIsBatchMoving(true);
+      await Promise.all(selectedProjects.map((id) => updateProjectFolder(id, dest)));
+      setIsBatchMoveModalOpen(false);
+      setIsBatchMoveNewFolder(false);
+      setNewBatchMoveFolderName('');
+      setSelectedProjects([]);
+      await loadProjects();
+    } catch (e) {
+      console.error('Lỗi khi di chuyển các dự án đã chọn:', e);
+    } finally {
+      setIsBatchMoving(false);
+    }
+  };
+
+  // Shift-click range selection: selects all projects in-between
+  const handleProjectCheckbox = (
+    e: React.ChangeEvent<HTMLInputElement> | React.MouseEvent<HTMLInputElement>,
+    projectId: string
+  ) => {
+    const isShift = Boolean((e.nativeEvent as MouseEvent)?.shiftKey || (e as any).shiftKey);
+    const target = e.target as HTMLInputElement;
+    const isChecked = target.checked;
+
+    if (isShift && lastSelectedIdRef.current) {
+      const allIds = filteredAndSortedProjects.map((p) => p.id);
+      const lastIdx = allIds.indexOf(lastSelectedIdRef.current);
+      const currIdx = allIds.indexOf(projectId);
+
+      if (lastIdx !== -1 && currIdx !== -1) {
+        const start = Math.min(lastIdx, currIdx);
+        const end = Math.max(lastIdx, currIdx);
+        const rangeIds = allIds.slice(start, end + 1);
+
+        if (isChecked) {
+          setSelectedProjects((prev) => Array.from(new Set([...prev, ...rangeIds])));
+        } else {
+          const rangeSet = new Set(rangeIds);
+          setSelectedProjects((prev) => prev.filter((id) => !rangeSet.has(id)));
+        }
+        lastSelectedIdRef.current = projectId;
+        return;
+      }
+    }
+
+    if (isChecked) {
+      setSelectedProjects((prev) => (prev.includes(projectId) ? prev : [...prev, projectId]));
+    } else {
+      setSelectedProjects((prev) => prev.filter((id) => id !== projectId));
+    }
+    lastSelectedIdRef.current = projectId;
+  };
+
   const openRenameFolderModal = (folderName: string) => {
     setRenamingFolder({
       oldName: folderName,
@@ -527,10 +602,7 @@ export default function ProjectList({ onOpenProject }: ProjectListProps) {
           <input
             type="checkbox"
             checked={selectedProjects.includes(p.id)}
-            onChange={(e) => {
-              if (e.target.checked) setSelectedProjects((prev) => [...prev, p.id]);
-              else setSelectedProjects((prev) => prev.filter((id) => id !== p.id));
-            }}
+            onChange={(e) => handleProjectCheckbox(e, p.id)}
             className="w-3.5 h-3.5 accent-cyan-500 bg-black/50 border border-white/20 rounded cursor-pointer"
           />
         </div>
@@ -675,12 +747,21 @@ export default function ProjectList({ onOpenProject }: ProjectListProps) {
           )}
 
           {selectedProjects.length > 0 && (
-            <button
-              onClick={() => setDeleteConfirm('SELECTED')}
-              className="px-2.5 py-1.5 bg-red-500/10 border border-red-500/30 text-red-500 rounded-sm text-[11px] uppercase tracking-widest hover:bg-red-500 hover:text-white transition-colors flex items-center gap-1.5"
-            >
-              <Trash2 size={12} /> Xóa ({selectedProjects.length})
-            </button>
+            <>
+              <button
+                onClick={openBatchMoveModal}
+                className="px-2.5 py-1.5 bg-cyan-500/15 border border-cyan-400/40 text-cyan-300 rounded-sm text-[11px] uppercase tracking-widest hover:bg-cyan-500/25 hover:text-white transition-colors flex items-center gap-1.5 shadow-[0_0_10px_rgba(34,211,238,0.15)] font-semibold"
+                title={`Di chuyển ${selectedProjects.length} dự án đã chọn sang thư mục khác`}
+              >
+                <Folder size={12} className="text-cyan-400" /> Di chuyển ({selectedProjects.length})
+              </button>
+              <button
+                onClick={() => setDeleteConfirm('SELECTED')}
+                className="px-2.5 py-1.5 bg-red-500/10 border border-red-500/30 text-red-500 rounded-sm text-[11px] uppercase tracking-widest hover:bg-red-500 hover:text-white transition-colors flex items-center gap-1.5"
+              >
+                <Trash2 size={12} /> Xóa ({selectedProjects.length})
+              </button>
+            </>
           )}
 
           <div className="flex gap-1 items-center mr-2 border-r border-white/10 pr-2">
@@ -1542,6 +1623,130 @@ export default function ProjectList({ onOpenProject }: ProjectListProps) {
                   className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-400 text-white font-bold text-xs uppercase tracking-wider transition-all shadow-[0_0_12px_rgba(239,68,68,0.3)]"
                 >
                   XÁC NHẬN XÓA
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Batch Move Projects Modal */}
+      <AnimatePresence>
+        {isBatchMoveModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+            onClick={() => {
+              if (!isBatchMoving) setIsBatchMoveModalOpen(false);
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.95 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.95 }}
+              className="bg-[#0f121a] border border-cyan-500/40 rounded-xl p-5 max-w-md w-full shadow-2xl space-y-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <div className="flex items-center gap-2">
+                  <Folder className="text-cyan-400" size={16} />
+                  <h3 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">
+                    Di Chuyển {selectedProjects.length} Dự Án
+                  </h3>
+                </div>
+                <button
+                  onClick={() => {
+                    if (!isBatchMoving) setIsBatchMoveModalOpen(false);
+                  }}
+                  disabled={isBatchMoving}
+                  className="text-slate-400 hover:text-white"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div className="text-xs text-slate-300">
+                  Chuyển <strong className="text-cyan-400">{selectedProjects.length} dự án đang chọn</strong> sang thư mục đích:
+                </div>
+
+                {isBatchMoveNewFolder ? (
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      value={newBatchMoveFolderName}
+                      onChange={(e) => setNewBatchMoveFolderName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') confirmBatchMove();
+                        if (e.key === 'Escape') setIsBatchMoveModalOpen(false);
+                      }}
+                      placeholder="Nhập tên thư mục mới..."
+                      autoFocus
+                      className="w-full px-3 py-2 bg-black/60 border border-cyan-400/60 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+                    />
+                    <div className="flex justify-between items-center text-[10px]">
+                      <span className="text-slate-500">Tạo thư mục mới</span>
+                      <button
+                        onClick={() => {
+                          setIsBatchMoveNewFolder(false);
+                          setNewBatchMoveFolderName('');
+                        }}
+                        className="text-cyan-400 hover:underline cursor-pointer"
+                      >
+                        Chọn thư mục có sẵn
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <select
+                      value={batchMoveTargetFolder}
+                      onChange={(e) => {
+                        if (e.target.value === '__NEW__') {
+                          setIsBatchMoveNewFolder(true);
+                        } else {
+                          setBatchMoveTargetFolder(e.target.value);
+                        }
+                      }}
+                      className="w-full px-3 py-2 bg-black/60 border border-white/15 rounded-lg text-xs text-white focus:outline-none focus:border-cyan-400 cursor-pointer"
+                    >
+                      <option value="Khác">📁 Khác (Mặc định)</option>
+                      {distinctFolders
+                        .filter((f) => f !== 'Khác')
+                        .map((folder) => (
+                          <option key={folder} value={folder}>
+                            📁 {folder}
+                          </option>
+                        ))}
+                    </select>
+
+                    <button
+                      onClick={() => setIsBatchMoveNewFolder(true)}
+                      className="w-full py-1.5 text-xs text-cyan-400 hover:text-cyan-300 font-semibold bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 rounded-md transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <FolderPlus size={13} /> + Tạo thư mục mới
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2 border-t border-white/5">
+                <button
+                  onClick={() => setIsBatchMoveModalOpen(false)}
+                  disabled={isBatchMoving}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-colors uppercase tracking-wider"
+                >
+                  HỦY
+                </button>
+                <button
+                  onClick={confirmBatchMove}
+                  disabled={isBatchMoving || (isBatchMoveNewFolder && !newBatchMoveFolderName.trim())}
+                  className="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-black font-bold text-xs uppercase tracking-wider transition-all shadow-[0_0_12px_rgba(34,211,238,0.3)] flex items-center gap-2"
+                >
+                  {isBatchMoving && <Loader2 size={13} className="animate-spin" />}
+                  {isBatchMoving ? 'ĐANG CHUYỂN...' : `XÁC NHẬN CHUYỂN (${selectedProjects.length})`}
                 </button>
               </div>
             </motion.div>

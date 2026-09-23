@@ -912,10 +912,33 @@ export default function XRayViewer({ initialProject, onBack }: { initialProject:
 
     const onResize = () => {
       if (!canvas.parentElement) return;
-      canvas.width = canvas.parentElement.clientWidth;
-      canvas.height = canvas.parentElement.clientHeight;
+      const newW = canvas.parentElement.clientWidth;
+      const newH = canvas.parentElement.clientHeight;
+      if (newW <= 0 || newH <= 0) return;
+
+      const oldW = canvas.width;
+      const oldH = canvas.height;
+      if (oldW === newW && oldH === newH) return;
+
+      canvas.width = newW;
+      canvas.height = newH;
+
+      // When canvas resizes (e.g. user toggles left/right sidebar or window resizes):
+      // STRICT RULE: DO NOT change viewState.current.scale (preserve exact zoom level)!
+      // Only adjust offsetX and offsetY so the center of the viewport stays aligned with the image center:
+      if (oldW > 0 && oldH > 0) {
+        viewState.current.offsetX += (newW - oldW) / 2;
+        viewState.current.offsetY += (newH - oldH) / 2;
+      }
     };
     onResize();
+
+    const resizeObserver = new ResizeObserver(() => {
+      onResize();
+    });
+    if (canvas.parentElement) {
+      resizeObserver.observe(canvas.parentElement);
+    }
 
     const { imgW, imgH } = getMasterDimensions();
     if (imgW > 0 && imgH > 0) {
@@ -1391,30 +1414,15 @@ export default function XRayViewer({ initialProject, onBack }: { initialProject:
           ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
           ctx.stroke();
 
-          // Dual-arrow minimalist slider handle
+          // Minimalist slider handle (clean round knob without arrow icons)
           const handleY = Math.max(screenTop + 24, Math.min(screenBottom - 24, mouseY));
           ctx.beginPath();
-          ctx.arc(lineX, handleY, 9, 0, Math.PI * 2);
+          ctx.arc(lineX, handleY, 7, 0, Math.PI * 2);
           ctx.fillStyle = '#090b10';
           ctx.fill();
           ctx.strokeStyle = '#22d3ee';
           ctx.lineWidth = 1.5;
           ctx.stroke();
-
-          // Left arrow
-          ctx.fillStyle = '#22d3ee';
-          ctx.beginPath();
-          ctx.moveTo(lineX - 4, handleY);
-          ctx.lineTo(lineX - 1.5, handleY - 3);
-          ctx.lineTo(lineX - 1.5, handleY + 3);
-          ctx.fill();
-
-          // Right arrow
-          ctx.beginPath();
-          ctx.moveTo(lineX + 4, handleY);
-          ctx.lineTo(lineX + 1.5, handleY - 3);
-          ctx.lineTo(lineX + 1.5, handleY + 3);
-          ctx.fill();
         }
       } else if (vs.enable3D) {
         // Full Image 3D Mode - No Lens!
@@ -1597,8 +1605,9 @@ export default function XRayViewer({ initialProject, onBack }: { initialProject:
 
             ctx.restore(); // pop the clip
 
-            ctx.lineWidth = 2 / vs.scale;
-            ctx.strokeStyle = 'rgba(34, 211, 238, 0.8)';
+            // Ultra-thin neutral/colorless hairline border (identical to comparison slider style, no cyan glow)
+            ctx.lineWidth = 1 / vs.scale;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
             ctx.beginPath();
             if (vs.lensShape === 1) {
               ctx.rect(lx - lensTrueRadius, ly - lensTrueRadius, lensTrueRadius * 2, lensTrueRadius * 2);
@@ -1608,11 +1617,6 @@ export default function XRayViewer({ initialProject, onBack }: { initialProject:
               ctx.arc(lx, ly, lensTrueRadius, 0, Math.PI * 2);
             }
             ctx.stroke();
-
-            ctx.shadowColor = 'rgba(34, 211, 238, 0.5)';
-            ctx.shadowBlur = 15 / vs.scale;
-            ctx.stroke();
-            ctx.shadowBlur = 0;
           }
         }
       }
@@ -2100,6 +2104,7 @@ export default function XRayViewer({ initialProject, onBack }: { initialProject:
     canvas.addEventListener('mouseenter', onCanvasEnter);
 
     return () => {
+      resizeObserver.disconnect();
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener('mousedown', onGlobalMouseBtn, { capture: true });
       window.removeEventListener('mouseup', onGlobalMouseBtn, { capture: true });
@@ -2207,7 +2212,7 @@ export default function XRayViewer({ initialProject, onBack }: { initialProject:
           onToggle={() => setIsMetadataOpen(!isMetadataOpen)}
         />
 
-        <main className="flex-1 relative bg-black overflow-hidden flex flex-col">
+        <main className="flex-1 relative bg-black overflow-hidden flex flex-col min-w-0 min-h-0">
           <div className="absolute inset-0 pointer-events-none z-0" style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px)', backgroundSize: '32px 32px' }}></div>
           
           {!loaded && !error && L > 0 && (
@@ -2241,89 +2246,92 @@ export default function XRayViewer({ initialProject, onBack }: { initialProject:
             </div>
           )}
 
-          <div className="flex-1 relative">
-            <canvas ref={canvasRef} className="block w-full h-full z-10" />
+          {/* Canvas viewport container */}
+          <div className="relative flex-1 w-full h-full min-w-0 min-h-0 overflow-hidden">
+            <canvas ref={canvasRef} className="absolute inset-0 w-full h-full z-10 block cursor-default" />
+          </div>
 
-            <div 
-              onMouseEnter={() => { isPointerOverUIRef.current = true; }}
-              onMouseLeave={() => { isPointerOverUIRef.current = false; }}
-              className="absolute top-4 left-4 flex gap-2 z-20"
+          {/* Top HUD */}
+          <div 
+            onMouseEnter={() => { isPointerOverUIRef.current = true; }}
+            onMouseLeave={() => { isPointerOverUIRef.current = false; }}
+            className="absolute top-4 left-4 flex gap-2 z-30 pointer-events-auto"
+          >
+            <button 
+              onClick={onBack} 
+              className="flex items-center gap-1.5 px-3 py-1 bg-black/60 border border-white/20 rounded text-[9px] uppercase tracking-widest text-slate-300 hover:text-white hover:border-white/40 transition-colors shadow-lg backdrop-blur-md cursor-pointer"
             >
-              <button 
-                onClick={onBack} 
-                className="flex items-center gap-1.5 px-3 py-1 bg-black/60 border border-white/20 rounded text-[9px] uppercase tracking-widest text-slate-300 hover:text-white hover:border-white/40 transition-colors shadow-lg backdrop-blur-md cursor-pointer"
-              >
-                <ArrowLeft size={12}/> THOÁT
-              </button>
-              <span id="hud-depth" className="px-3 py-1 pointer-events-none bg-black/60 border border-cyan-400/30 rounded text-[9px] flex items-center font-mono tracking-widest text-cyan-400">Đang xem: Lớp {activeLayerIndex + 1}/{L}</span>
-            </div>
+              <ArrowLeft size={12}/> THOÁT
+            </button>
+            <span id="hud-depth" className="px-3 py-1 pointer-events-none bg-black/60 border border-cyan-400/30 rounded text-[9px] flex items-center font-mono tracking-widest text-cyan-400">Đang xem: Lớp {activeLayerIndex + 1}/{L}</span>
+          </div>
 
-            <div 
-              onMouseEnter={() => { isPointerOverUIRef.current = true; }}
-              onMouseLeave={() => { isPointerOverUIRef.current = false; }}
-              className="floating-controls absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-black/80 backdrop-blur-md border border-white/10 rounded-full px-6 py-2 z-20 shadow-2xl"
-            >
-               <span className="text-[10px] font-mono text-cyan-400 w-12">{Math.round(zoomLevel)}%</span>
-               <div className="relative w-48 flex items-center">
-                 <input 
-                   type="range" 
-                   min={0} 
-                   max={100} 
-                   value={Math.abs(sliderValue - 50) < 3 ? 50 : sliderValue}
-                   onChange={(e) => {
-                     const v = parseInt(e.target.value);
-                     let snapV = v;
-                     if (Math.abs(v - 50) < 3) snapV = 50;
-                     const scale = snapV <= 50 ? 0.1 + (snapV / 50) * 0.9 : 1 + ((snapV - 50) / 50) * 19;
-                     apiRef.current?.setZoom(scale);
-                   }}
-                   className="w-full relative z-10 accent-cyan-400 cursor-pointer"
-                 />
-                 <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-0.5 h-3.5 bg-cyan-500/50 pointer-events-none"></div>
-               </div>
-               <div className="w-[1px] h-4 bg-white/20 mx-2"></div>
-               <button onClick={() => apiRef.current?.fitScreen()} className="text-slate-300 hover:text-white transition-colors p-1 cursor-pointer" title="Vừa màn hình">
-                  <Maximize size={16} />
-               </button>
-               <div className="w-[1px] h-4 bg-white/20 mx-1"></div>
-               <button
-                 onClick={() => updateVS('autoAnimate', !viewState.current.autoAnimate)}
-                 className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-mono tracking-wider transition-all cursor-pointer ${
-                   viewState.current.autoAnimate 
-                     ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/60 shadow-[0_0_12px_rgba(34,211,238,0.35)]' 
-                     : 'text-slate-300 hover:text-white hover:bg-white/10'
-                 }`}
-                 title={viewState.current.autoAnimate ? 'Dừng phát mượt các lớp' : 'Play mượt hiển thị thay đổi giữa các lớp'}
-               >
-                 {viewState.current.autoAnimate ? <Pause size={12} className="fill-current text-cyan-400" /> : <Play size={12} className="fill-current" />}
-                 <span className="hidden sm:inline font-bold">{viewState.current.autoAnimate ? 'DỪNG' : 'PLAY MƯỢT'}</span>
-               </button>
-               {(prevProject || nextProject) && <div className="w-[1px] h-4 bg-white/20 mx-2"></div>}
-               {prevProject && (
-                  <button 
-                    onClick={async () => {
-                      const full = await getProject(prevProject.id);
-                      if (full) switchToProject(full);
-                    }} 
-                    className="text-slate-300 hover:text-white transition-colors p-1 cursor-pointer" 
-                    title={`Dự án trước: ${prevProject.name}`}
-                  >
-                     <ChevronLeft size={16} />
-                  </button>
-               )}
-               {nextProject && (
-                  <button 
-                    onClick={async () => {
-                      const full = await getProject(nextProject.id);
-                      if (full) switchToProject(full);
-                    }} 
-                    className="text-slate-300 hover:text-white transition-colors p-1 cursor-pointer" 
-                    title={`Dự án sau: ${nextProject.name}`}
-                  >
-                     <ChevronRight size={16} />
-                  </button>
-               )}
-            </div>
+          {/* Floating Controls Toolbar: always anchored bottom-6 inside visible viewport */}
+          <div 
+            onMouseEnter={() => { isPointerOverUIRef.current = true; }}
+            onMouseLeave={() => { isPointerOverUIRef.current = false; }}
+            className="floating-controls absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 sm:gap-4 bg-black/85 backdrop-blur-md border border-white/15 rounded-full px-4 sm:px-6 py-2 z-40 shadow-2xl shrink-0 max-w-[calc(100%-2rem)] select-none pointer-events-auto"
+          >
+             <span className="text-[10px] font-mono text-cyan-400 w-12">{Math.round(zoomLevel)}%</span>
+             <div className="relative w-48 flex items-center">
+               <input 
+                 type="range" 
+                 min={0} 
+                 max={100} 
+                 value={Math.abs(sliderValue - 50) < 3 ? 50 : sliderValue}
+                 onChange={(e) => {
+                   const v = parseInt(e.target.value);
+                   let snapV = v;
+                   if (Math.abs(v - 50) < 3) snapV = 50;
+                   const scale = snapV <= 50 ? 0.1 + (snapV / 50) * 0.9 : 1 + ((snapV - 50) / 50) * 19;
+                   apiRef.current?.setZoom(scale);
+                 }}
+                 className="w-full relative z-10 accent-cyan-400 cursor-pointer"
+               />
+               <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-0.5 h-3.5 bg-cyan-500/50 pointer-events-none"></div>
+             </div>
+             <div className="w-[1px] h-4 bg-white/20 mx-2"></div>
+             <button onClick={() => apiRef.current?.fitScreen()} className="text-slate-300 hover:text-white transition-colors p-1 cursor-pointer" title="Vừa màn hình">
+                <Maximize size={16} />
+             </button>
+             <div className="w-[1px] h-4 bg-white/20 mx-1"></div>
+             <button
+               onClick={() => updateVS('autoAnimate', !viewState.current.autoAnimate)}
+               className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-mono tracking-wider transition-all cursor-pointer ${
+                 viewState.current.autoAnimate 
+                   ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/60 shadow-[0_0_12px_rgba(34,211,238,0.35)]' 
+                   : 'text-slate-300 hover:text-white hover:bg-white/10'
+               }`}
+               title={viewState.current.autoAnimate ? 'Dừng phát mượt các lớp' : 'Play mượt hiển thị thay đổi giữa các lớp'}
+             >
+               {viewState.current.autoAnimate ? <Pause size={12} className="fill-current text-cyan-400" /> : <Play size={12} className="fill-current" />}
+               <span className="hidden sm:inline font-bold">{viewState.current.autoAnimate ? 'DỪNG' : 'PLAY MƯỢT'}</span>
+             </button>
+             {(prevProject || nextProject) && <div className="w-[1px] h-4 bg-white/20 mx-2"></div>}
+             {prevProject && (
+                <button 
+                  onClick={async () => {
+                    const full = await getProject(prevProject.id);
+                    if (full) switchToProject(full);
+                  }} 
+                  className="text-slate-300 hover:text-white transition-colors p-1 cursor-pointer" 
+                  title={`Dự án trước: ${prevProject.name}`}
+                >
+                   <ChevronLeft size={16} />
+                </button>
+             )}
+             {nextProject && (
+                <button 
+                  onClick={async () => {
+                    const full = await getProject(nextProject.id);
+                    if (full) switchToProject(full);
+                  }} 
+                  className="text-slate-300 hover:text-white transition-colors p-1 cursor-pointer" 
+                  title={`Dự án sau: ${nextProject.name}`}
+                >
+                   <ChevronRight size={16} />
+                </button>
+             )}
           </div>
         </main>
 
