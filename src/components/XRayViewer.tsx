@@ -54,8 +54,34 @@ export default function XRayViewer({
     projectListSequence && projectListSequence.length > 0 ? projectListSequence : []
   );
   const [isAfterModalOpen, setIsAfterModalOpen] = useState(false);
-  const [isMetadataOpen, setIsMetadataOpen] = useState(true);
-  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true);
+  const [isMetadataOpen, setIsMetadataOpen] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('xray_isMetadataOpen');
+      return saved !== null ? JSON.parse(saved) : true;
+    } catch {
+      return true;
+    }
+  });
+  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('xray_isRightSidebarOpen');
+      return saved !== null ? JSON.parse(saved) : true;
+    } catch {
+      return true;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('xray_isMetadataOpen', JSON.stringify(isMetadataOpen));
+    } catch {}
+  }, [isMetadataOpen]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('xray_isRightSidebarOpen', JSON.stringify(isRightSidebarOpen));
+    } catch {}
+  }, [isRightSidebarOpen]);
 
   useEffect(() => {
     if (projectListSequence && projectListSequence.length > 0) {

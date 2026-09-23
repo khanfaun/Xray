@@ -174,11 +174,75 @@ export default function ProjectList({ onOpenProject }: ProjectListProps) {
   const [isAfterModalOpen, setIsAfterModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Folder and Filter States
-  const [selectedFolderFilter, setSelectedFolderFilter] = useState<string>('ALL');
-  const [sortBy, setSortBy] = useState<SortOption>('date-desc');
-  const [groupByFolder, setGroupByFolder] = useState<boolean>(true);
-  const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({});
+  // Folder and Filter States with persistent storage
+  const [selectedFolderFilter, setSelectedFolderFilter] = useState<string>(() => {
+    try {
+      return localStorage.getItem('projectList_selectedFolderFilter') || 'ALL';
+    } catch {
+      return 'ALL';
+    }
+  });
+  const [sortBy, setSortBy] = useState<SortOption>(() => {
+    try {
+      return (localStorage.getItem('projectList_sortBy') as SortOption) || 'date-desc';
+    } catch {
+      return 'date-desc';
+    }
+  });
+  const [groupByFolder, setGroupByFolder] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('projectList_groupByFolder');
+      return saved !== null ? JSON.parse(saved) : true;
+    } catch {
+      return true;
+    }
+  });
+  const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('projectList_collapsedFolders');
+      return saved !== null ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const [layoutMode, setLayoutMode] = useState<'grid' | 'list'>(() => {
+    try {
+      return (localStorage.getItem('projectLayout') as 'grid' | 'list') || 'grid';
+    } catch {
+      return 'grid';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('projectList_selectedFolderFilter', selectedFolderFilter);
+    } catch {}
+  }, [selectedFolderFilter]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('projectList_sortBy', sortBy);
+    } catch {}
+  }, [sortBy]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('projectList_groupByFolder', JSON.stringify(groupByFolder));
+    } catch {}
+  }, [groupByFolder]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('projectList_collapsedFolders', JSON.stringify(collapsedFolders));
+    } catch {}
+  }, [collapsedFolders]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('projectLayout', layoutMode);
+    } catch {}
+  }, [layoutMode]);
 
   // Move project folder modal state
   const [movingProject, setMovingProject] = useState<ProjectSummary | null>(null);
@@ -207,10 +271,6 @@ export default function ProjectList({ onOpenProject }: ProjectListProps) {
   // Pagination / Display limit for flat mode
   const [displayLimit, setDisplayLimit] = useState(48);
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
-
-  const [layoutMode, setLayoutMode] = useState<'grid' | 'list'>(
-    (localStorage.getItem('projectLayout') as 'grid' | 'list') || 'grid'
-  );
 
   useEffect(() => {
     loadProjects();
